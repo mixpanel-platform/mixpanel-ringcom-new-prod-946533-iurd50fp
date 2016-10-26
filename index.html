@@ -5,46 +5,88 @@
     <link rel="stylesheet" type="text/css" href="https://cdn.mxpnl.com/libs/mixpanel-platform/css/reset.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.mxpnl.com/libs/mixpanel-platform/build/mixpanel-platform.v0.latest.min.css">
     <script src="https://cdn.mxpnl.com/libs/mixpanel-platform/build/mixpanel-platform.v0.latest.min.js"></script>
+    <style>
+      #run, #funnel-query, .alert-ok {
+        clear:both;
+        vertical-align: 1px;
+        padding: 6px 12px;
+        background-color: #61adf0;
+        background-image: -webkit-linear-gradient(#6ab5f2,#53a0ee);
+        background-image: linear-gradient(#6ab5f2,#53a0ee);
+        box-shadow: inset 0 1px 1px #77bdf4,0 2px 2px -1px rgba(0,0,0,0.2);
+        text-transform: uppercase;
+        border: 1px solid #4d93d7;
+        color: #fff;
+        text-shadow: 0 -1px 0 rgba(0,0,0,0.2);
+        border-radius: 3px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      #run {
+        max-width: 26px;
+      }
+    </style>
   </head>
   <body class="mixpanel-platform-body">
     <div class="mixpanel-platform-section">
-      <div id="eventSelect" style="float: left;"></div>
-      <div id="by" class="mixpanel-platform-label" style="margin-left: 10px; display: none;">by</div>
-      <div id="propSelect" style="float: left;"></div>
+      <input id='distinct_id' class='input' type='text' value='Distinct ID' style='left: 50px; width=100px; text-align: right;'>
+      <div id="run" style="float: right; right:100px;">RUN</div>
       <div id="dateSelect" style="float: right;"></div>
       <div style="clear: both;"></div>
-      <div id="graph"></div>
+      <div id="table"></div>
     </div>
-    <div id="table"></div>
+    <script id="script">
+      function main() {
+        return Events({
+          from_date: params.from_date,
+          to_date:   params.to_date
+        })
+        .filter(function(event) {
+          return event.distinct_id == params.distinct_id;
+        });
+      }
+    </script>
+    
     <script>
-      var eventSelect = $('#eventSelect').MPEventSelect();
-      var propSelect  = $('#propSelect').MPPropertySelect();
+      MP.api.setCredentials("fb5cd548015d767999059038755ce6b3");
       var dateSelect  = $('#dateSelect').MPDatepicker();
-      var eventGraph  = $('#graph').MPChart({chartType: 'line'});
       var eventTable  = $('#table').MPTable({
         showPercentages: true,
         firstColHeader: 'Event'
       });
-
+        
       var runQuery = function() {
-        var eventName = eventSelect.MPEventSelect('value'),
-            propName  = propSelect.MPPropertySelect('value'),
-            dateRange = dateSelect.MPDatepicker('value');
-
-        if (eventName) {
-          MP.api.segment(eventName, propName, dateRange).done(function(results) {
-            eventGraph.MPChart('setData', results);
-            eventTable.MPTable('setData', results);
-          });
-        }
+        var dateRange = dateSelect.MPDatepicker('value');
+        
+        var script = document.getElementById('script').innerHTML;
+          
+        var params = {
+          'from_date': dateRange.from.toISOString().substring(0, 10),
+          'to_date': dateRange.to.toISOString().substring(0, 10),
+          'distinct_id': document.getElementById('distinct_id').value
+        };
+          
+        MP.api.jql(script, params).done(function(results) {
+          var data = [];
+          for(i=0; i<results.length; i++) {
+            data[i] = {};
+            data[i]['Event'] = results[i]['name'];
+            data[i]['Distinct ID'] = results[i]['distinct_id'];
+            data[i]['Time'] = results[i]['time'];
+            var keys = Object.keys(results[i]['properties']);
+            for(j=0; j<keys.length; j++) {
+              data[i][keys[j]] = results[i]['properties'][keys[j]];
+            }
+          }
+          console.log(data);
+          eventTable.MPTable('setData', data);
+        });
       };
-      eventSelect.on('change', function(e, eventName) {
-        propSelect.MPPropertySelect('setEvent', eventName);
-        $("#by").show();
-        runQuery();
-      });
-      propSelect.on('change', runQuery);
+
       dateSelect.on('change', runQuery);
+      $('#run').on('click', function() { runQuery(); });
+      
+      runQuery();
     </script>
   </body>
 </html>
